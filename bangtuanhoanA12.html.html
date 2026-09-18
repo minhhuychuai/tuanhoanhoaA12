@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Tuần Hoàn IUPAC 118 Nguyên Tố & Mô Hình 3D</title>
+
+    <!-- Thư viện Three.js dựng 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --border-color: #334155;
+            
+            --nonmetal: #2563eb;
+            --noble-gas: #7c3aed;
+            --alkali: #dc2626;
+            --alkaline-earth: #ea580c;
+            --metalloid: #059669;
+            --halogen: #0891b2;
+            --post-transition: #65a30d;
+            --transition: #ca8a04;
+            --lanthanide: #db2777;
+            --actinide: #c026d3;
+            --unknown: #475569;
+
+            --safe-color: #22c55e;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 15px; }
+
+        header { text-align: center; margin-bottom: 15px; }
+        header h1 { color: var(--accent-color); font-size: 22px; }
+        header p { color: #94a3b8; font-size: 13px; }
+
+        .main-container { display: grid; grid-template-columns: 1fr 420px; gap: 15px; }
+        @media (max-width: 1280px) { .main-container { grid-template-columns: 1fr; } }
+
+        /* Periodic Table Grid Layout */
+        .table-wrapper { overflow-x: auto; background: var(--card-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .periodic-table {
+            display: grid;
+            grid-template-columns: repeat(18, minmax(42px, 1fr));
+            grid-template-rows: repeat(10, minmax(42px, 1fr));
+            gap: 3px;
+            min-width: 800px;
+        }
+
+        .element {
+            aspect-ratio: 1;
+            border-radius: 4px;
+            padding: 2px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            border: 1px solid transparent;
+        }
+        .element:hover { transform: scale(1.2); z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.6); border-color: #fff; }
+
+        .element .num { font-size: 9px; opacity: 0.85; }
+        .element .sym { font-size: 13px; font-weight: bold; text-align: center; }
+        .element .name { font-size: 7px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Categories */
+        .nonmetal { background-color: var(--nonmetal); }
+        .noble-gas { background-color: var(--noble-gas); }
+        .alkali { background-color: var(--alkali); }
+        .alkaline-earth { background-color: var(--alkaline-earth); }
+        .metalloid { background-color: var(--metalloid); }
+        .halogen { background-color: var(--halogen); }
+        .post-transition { background-color: var(--post-transition); }
+        .transition { background-color: var(--transition); }
+        .lanthanide { background-color: var(--lanthanide); }
+        .actinide { background-color: var(--actinide); }
+        .unknown { background-color: var(--unknown); }
+
+        /* Side Panel */
+        .side-panel { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        
+        .tabs { display: flex; border-bottom: 2px solid var(--border-color); }
+        .tab-btn { flex: 1; padding: 8px; background: none; border: none; color: var(--text-color); font-weight: bold; cursor: pointer; opacity: 0.6; }
+        .tab-btn.active { opacity: 1; color: var(--accent-color); border-bottom: 2px solid var(--accent-color); }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* 3D Canvas Box */
+        .canvas-3d-box {
+            width: 100%;
+            height: 220px;
+            background-color: #020617;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .canvas-hint { position: absolute; bottom: 5px; right: 8px; font-size: 10px; color: #64748b; pointer-events: none; }
+
+        /* Detail Table Styling */
+        .detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .detail-sym { width: 45px; height: 45px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; }
+        .info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .info-table td { padding: 5px 0; border-bottom: 1px solid var(--border-color); }
+        .info-table td:first-child { color: #94a3b8; width: 45%; }
+
+        /* Hazard Dynamic Colors */
+        .hazard-safe { color: var(--safe-color) !important; font-weight: 500; }
+        .hazard-warning { color: var(--warning-color) !important; font-weight: 500; }
+        .hazard-danger { color: var(--danger-color) !important; font-weight: bold; }
+
+        /* Compare Table */
+        .compare-selects { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .compare-selects select { width: 100%; padding: 6px; border-radius: 4px; background: #334155; color: #fff; border: 1px solid var(--border-color); }
+        .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .compare-table th, .compare-table td { padding: 5px 3px; border-bottom: 1px solid var(--border-color); text-align: center; }
+        .compare-table th:first-child, .compare-table td:first-child { text-align: left; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Bảng Tuần Hoàn IUPAC (118 Nguyên Tố) & Mô Hình 3D</h1>
+        <p>Tên gọi chuẩn tiếng Anh. Đánh giá độc tính thực tế ở 25°C. Tương tác mô hình 3D nguyên tử</p>
+    </header>
+
+    <div class="main-container">
+        <!-- BẢNG TUẦN HOÀN -->
+        <div class="table-wrapper">
+            <div class="periodic-table" id="periodicTable"></div>
+        </div>
+
+        <!-- PANEL BÊN CẠNH -->
+        <div class="side-panel">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('detail')">Chi Tiết & 3D</button>
+                <button class="tab-btn" onclick="switchTab('compare')">So Sánh 2 Nguyên Tố</button>
+            </div>
+
+            <!-- TAB CHI TIẾT & 3D -->
+            <div id="detailTab" class="tab-content active">
+                <div id="detailPlaceholder" style="text-align: center; padding: 40px 0; color: #94a3b8;">
+                    Nhấp vào một nguyên tố bất kỳ trên bảng để xem mô hình 3D và thông số chi tiết.
+                </div>
+                <div id="detailContent" style="display: none;">
+                    
+                    <!-- Khung mô phỏng 3D -->
+                    <div class="canvas-3d-box">
+                        <div id="atom3d"></div>
+                        <span class="canvas-hint">Xoay/Phóng to bằng chuột</span>
+                    </div>
+
+                    <div class="detail-header">
+                        <div class="detail-sym" id="dSym">H</div>
+                        <div>
+                            <h3 id="dName">Hydrogen</h3>
+                            <span id="dCat" style="font-size: 12px; color: var(--accent-color);">Nonmetal</span>
+                        </div>
+                    </div>
+
+                    <table class="info-table">
+                        <tr><td>Số hiệu nguyên tử:</td><td id="dNum">-</td></tr>
+                        <tr><td>Chu kỳ / Nhóm:</td><td id="dPG">-</td></tr>
+                        <tr><td>Khối lượng nguyên tử:</td><td id="dMass">-</td></tr>
+                        <tr><td>Cấu hình electron:</td><td id="dConfig">-</td></tr>
+                        <tr><td>Trạng thái (25°C):</td><td id="dState">-</td></tr>
+                        <tr><td>Độ âm điện:</td><td id="dEN">-</td></tr>
+                        <tr><td>Năng lượng ion hóa:</td><td id="dIE">-</td></tr>
+                        <tr><td>Nhiệt độ chảy / sôi:</td><td id="dTemp">-</td></tr>
+                        <tr><td>Độ dẫn điện:</td><td id="dCond">-</td></tr>
+                        <tr><td>Ứng dụng thực tế:</td><td id="dApp">-</td></tr>
+                        <tr><td>Độ độc hại (25°C):</td><td id="dHaz">-</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB SO SÁNH -->
+            <div id="compareTab" class="tab-content">
+                <div class="compare-selects">
+                    <div>
+                        <label style="font-size: 11px; color: #94a3b8;">Nguyên tố 1:</label>
+                        <select id="sel1" onchange="renderCompare()"></select>
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; color: #94a3b8;">Nguyên tố 2:</label>
+                        <select id="sel2" onchange="renderCompare()"></select>
+                    </div>
+                </div>
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th>Thuộc tính</th>
+                            <th id="cH1" style="color: var(--accent-color);">--</th>
+                            <th id="cH2" style="color: #f43f5e;">--</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DỮ LIỆU chuẩn 118 Nguyên tố - Đã sửa Vanadium symbol = "V"
+        const rawElements = [
+            [1,"H","Hydrogen",1.008,1,1,"nonmetal","Gas",2.20,1312,"-259.16°C / -252.87°C","Không dẫn","Nhiên liệu sạch, sản xuất Ammonia, tinh chế dầu mỏ","Không độc hại ở điều kiện phòng (Khí cháy nổ khi gặp lửa)","safe"],
+            [2,"He","Helium",4.0026,1,18,"noble-gas","Gas",null,2372,"-272.2°C / -268.93°C","Không dẫn","Làm mát máy MRI, bơm khí cầu, hàn hồ quang","Khí trơ hoàn toàn không độc hại","safe"],
+            [3,"Li","Lithium",6.94,2,1,"alkali","Solid",0.98,520,"180.54°C / 1342°C","Dẫn điện tốt","Pin Lithium-ion, hợp kim nhẹ hàng không","Nguy cơ gây bỏng hóa chất nếu tiếp xúc trực tiếp ẩm","warning"],
+            [4,"Be","Beryllium",9.0122,2,2,"alkaline-earth","Solid",1.57,899,"1287°C / 2469°C","Dẫn điện tốt","Cửa sổ máy X-ray, linh kiện vệ tinh","CỰC ĐỘC khi hít bụi mịn (gây bệnh Berylliosis)","danger"],
+            [5,"B","Boron",10.81,2,13,"metalloid","Solid",2.04,801,"2076°C / 3927°C","Bán dẫn","Thủy tinh Pyrex chịu nhiệt, chất bán dẫn","Độc tính rất thấp với con người ở điều kiện phòng","safe"],
+            [6,"C","Carbon",12.011,2,14,"nonmetal","Solid",2.55,1086,"Thăng hoa 3642°C","Dẫn điện (Graphite)","Nhiên liệu, thép, lọc nước (than hoạt tính), kim cương","Hoàn toàn không độc ở dạng nguyên tố","safe"],
+            [7,"N","Nitrogen",14.007,2,15,"nonmetal","Gas",3.04,1402,"-210°C / -195.79°C","Không dẫn","Bảo quản thực phẩm, sản xuất phân bón, Nitơ lỏng","Khí trơ chiếm 78% không khí, không độc hại","safe"],
+            [8,"O","Oxygen",15.999,2,16,"nonmetal","Gas",3.44,1314,"-218.79°C / -182.96°C","Không dẫn","Duy trì sự sống con người, y tế, sản xuất thép","Thiết yếu cho sự sống, hoàn toàn an toàn ở 25°C","safe"],
+            [9,"F","Fluorine",18.998,2,17,"halogen","Gas",3.98,1681,"-219.67°C / -188.11°C","Không dẫn","Chế tạo chất dẻo Teflon, hợp chất Kem đánh răng","CỰC ĐỘC, ăn mòn mô sinh học cực mạnh","danger"],
+            [10,"Ne","Neon",20.180,2,18,"noble-gas","Gas",null,2081,"-248.59°C / -246.08°C","Không dẫn","Đèn nến quảng cáo Neon, la-zer","Khí trơ hoàn toàn không độc hại","safe"],
+            [11,"Na","Sodium",22.990,3,1,"alkali","Solid",0.93,496,"97.72°C / 883°C","Dẫn điện tốt","Đèn đường, sản xuất muối ăn NaCl, trao đổi nhiệt","Gây bỏng da do phản ứng háo nước mạnh","warning"],
+            [12,"Mg","Magnesium",24.305,3,2,"alkaline-earth","Solid",1.31,738,"650°C / 1090°C","Dẫn điện tốt","Hợp kim nhẹ vỏ laptop, vỏ ô tô, pháo hoa","Khoáng chất thiết yếu cho cơ thể, không độc","safe"],
+            [13,"Al","Aluminium",26.982,3,13,"post-transition","Solid",1.61,578,"660.32°C / 2470°C","Dẫn điện rất cao","Vỏ máy bay, lon nước giải khát, cửa hợp kim","An toàn tuyệt đối ở 25°C","safe"],
+            [14,"Si","Silicon",28.085,3,14,"metalloid","Solid",1.90,787,"1414°C / 3265°C","Bán dẫn","Chip vi xử lý vi tính, kính, tấm pin mặt trời","An toàn ở khối rắn (Bụi mịn kéo dài gây xơ phổi)","safe"],
+            [15,"P","Phosphorus",30.974,3,15,"nonmetal","Solid",2.19,1012,"44.15°C / 280.5°C","Không dẫn","Sản xuất phân bón, đầu diêm an toàn","Photpho đỏ an toàn; Photpho trắng CỰC ĐỘC và tự cháy","danger"],
+            [16,"S","Sulfur",32.06,3,16,"nonmetal","Solid",2.58,1000,"115.21°C / 444.6°C","Không dẫn","Sản xuất Axit Sulfuric, lưu hóa cao su","Ít độc tính ở điều kiện phòng","safe"],
+            [17,"Cl","Chlorine",35.45,3,17,"halogen","Gas",3.16,1251,"-101.5°C / -34.04°C","Không dẫn","Khử trùng nước hồ bơi, chất tẩy rửa","ĐỘC HẠI, gây kích ứng đường hô hấp và mắt","danger"],
+            [18,"Ar","Argon",39.948,3,18,"noble-gas","Gas",null,1521,"-189.34°C / -185.85°C","Không dẫn","Khí trơ bảo vệ mối hàn, bóng đèn sợi đốt","Khí trơ hoàn toàn không độc hại","safe"],
+            [19,"K","Potassium",39.098,4,1,"alkali","Solid",0.82,419,"63.56°C / 759°C","Dẫn điện tốt","Phân bón NPK, chất điện giải sinh học","Thiết yếu cho cơ thể; Dạng kim loại phản ứng mạnh với nước","warning"],
+            [20,"Ca","Calcium",40.078,4,2,"alkaline-earth","Solid",1.00,590,"842°C / 1484°C","Dẫn điện tốt","Xi măng xây dựng, bổ sung dưỡng chất xương","Thiết yếu cho xương, không độc ở dạng hợp chất","safe"],
+            [21,"Sc","Scandium",44.956,4,3,"transition","Solid",1.36,633,"1541°C / 2836°C","Trung bình","Khung xe đạp thể thao cao cấp, gậy golf","Độc tính rất thấp ở điều kiện phòng","safe"],
+            [22,"Ti","Titanium",47.867,4,4,"transition","Solid",1.54,658,"1668°C / 3287°C","Kém hơn Cu","Vỏ máy bay, khớp xương nhân tạo, tàu vũ trụ","Hoàn toàn không độc, tương thích sinh học cao nhất","safe"],
+            [23,"V","Vanadium",50.942,4,5,"transition","Solid",1.63,651,"1910°C / 3407°C","Trung bình","Thép hợp kim lò xo, dụng cụ cơ khí","Độc tính thấp ở khối rắn điều kiện phòng","safe"],
+            [24,"Cr","Chromium",51.996,4,6,"transition","Solid",1.66,653,"1907°C / 2671°C","Dẫn điện tốt","Mạ kim loại chống gỉ, thép không gỉ (Inox)","Kim loại không độc (Hợp chất Crom VI mới cực độc)","safe"],
+            [25,"Mn","Manganese",54.938,4,7,"transition","Solid",1.55,717,"1246°C / 2061°C","Trung bình","Chế tạo hợp kim thép cường độ cao, pin","Nguyên tố vi lượng, độc tính thấp ở 25°C","safe"],
+            [26,"Fe","Iron",55.845,4,8,"transition","Solid",1.83,762,"1538°C / 2862°C","Dẫn điện tốt","Vật liệu xây dựng, máy móc, máu (Hemoglobin)","An toàn tuyệt đối, cốt lõi duy trì sự sống","safe"],
+            [27,"Co","Cobalt",58.933,4,9,"transition","Solid",1.88,760,"1495°C / 2927°C","Dẫn điện tốt","Pin xe điện, nam châm vĩnh cửu, Vitamin B12","Tiếp xúc khối rắn an toàn; Vi lượng trong B12","safe"],
+            [28,"Ni","Nickel",58.693,4,10,"transition","Solid",1.91,737,"1455°C / 2913°C","Dẫn điện tốt","Đồng tiền xu, mạ chống gỉ, pin sạc","An toàn ở dạng kim loại (Có thể gây dị ứng da nhẹ)","safe"],
+            [29,"Cu","Copper",63.546,4,11,"transition","Solid",1.90,745,"1084.62°C / 2562°C","Cực cao","Dây dẫn điện, cuộn cảm động cơ, ống nước","Không độc ở dạng kim loại rắn","safe"],
+            [30,"Zn","Zinc",65.38,4,12,"transition","Solid",1.65,906,"419.53°C / 907°C","Dẫn điện tốt","Tôn mạ kẽm, hợp kim đồng thau, thuốc vi lượng","Thiết yếu cho cơ thể, an toàn ở 25°C","safe"],
+            [31,"Ga","Gallium",69.723,4,13,"post-transition","Solid",1.81,579,"29.76°C / 2204°C","Trung bình","Bán dẫn GaAs trong bóng LED, la-zer","Độc tính rất thấp, tan chảy ngay trên bàn tay","safe"],
+            [32,"Ge","Germanium",72.630,4,14,"metalloid","Solid",2.01,762,"938.25°C / 2833°C","Bán dẫn","Kính nhìn đêm hồng ngoại, cáp quang","Không có ghi nhận độc tính ở nhiệt độ phòng","safe"],
+            [33,"As","Arsenic",74.922,4,15,"metalloid","Solid",2.18,947,"Subl. 614°C","Bán dẫn","Linh kiện bán dẫn vi mô","CỰC ĐỘC, chất gây ung thư nguy hiểm","danger"],
+            [34,"Se","Selenium",78.971,4,16,"nonmetal","Solid",2.55,941,"221°C / 685°C","Kém","Máy photo copy, thực phẩm bổ sung vi lượng","Khoáng chất vi lượng cần thiết; Liều cao mới độc","safe"],
+            [35,"Br","Bromine",79.904,4,17,"halogen","Liquid",2.96,1140,"-7.2°C / 58.8°C","Không dẫn","Chất chống cháy, dược phẩm","CỰC ĐỘC, chất lỏng bốc hơi ăn mòn da nặng","danger"],
+            [36,"Kr","Krypton",83.798,4,18,"noble-gas","Gas",null,1351,"-157.36°C / -153.22°C","Không dẫn","Đèn chớp đường băng sân bay, la-zer y tế","Khí trơ hoàn toàn không độc hại","safe"],
+            [37,"Rb","Rubidium",85.468,5,1,"alkali","Solid",0.82,403,"39.30°C / 688°C","Dẫn điện tốt","Đồng hồ nguyên tử siêu chính xác","Phản ứng cháy nổ khi gặp không khí ẩm","warning"],
+            [38,"Sr","Strontium",87.62,5,2,"alkaline-earth","Solid",0.95,549,"777°C / 1382°C","Dẫn điện tốt","Pháo hoa màu đỏ thắm, pháo hiệu","Độc tính tự nhiên rất thấp ở 25°C","safe"],
+            [39,"Y","Yttrium",88.906,5,3,"transition","Solid",1.22,600,"1526°C / 3336°C","Trung bình","Đèn LED trắng, Laze YAG phẫu thuật","Độc tính nhẹ ở dạng bụi","safe"],
+            [40,"Zr","Zirconium",91.224,5,4,"transition","Solid",1.33,640,"1855°C / 4409°C","Trung bình","Vỏ thanh nhiên liệu lò phản ứng hạt nhân","Tương thích sinh học cao, không độc hại","safe"],
+            [41,"Nb","Niobium",92.906,5,5,"transition","Solid",1.60,652,"2477°C / 4744°C","Trung bình","Nam châm siêu dẫn, động cơ hàng không","Không độc hại ở dạng kim loại","safe"],
+            [42,"Mo","Molybdenum",95.95,5,6,"transition","Solid",2.16,684,"2623°C / 4639°C","Dẫn điện tốt","Thép chịu nhiệt độ cao, động cơ tên lửa","Vi lượng cần thiết cho cơ thể, an toàn","safe"],
+            [43,"Tc","Technetium",98,5,7,"transition","Solid",1.90,702,"2157°C / 4265°C","Trung bình","Chẩn đoán hình ảnh y học hạt nhân","NGUY HIỂM PHÓNG XẠ","danger"],
+            [44,"Ru","Ruthenium",101.07,5,8,"transition","Solid",2.20,710,"2334°C / 4150°C","Dẫn điện tốt","Lớp phủ ổ cứng máy tính, tiếp điểm điện","Khối kim loại an toàn ở 25°C","safe"],
+            [45,"Rh","Rhodium",102.91,5,9,"transition","Solid",2.28,720,"1964°C / 3695°C","Dẫn điện rất cao","Bộ lọc khí thải ô tô (chất xúc tác)","Kim loại quý trơ, không độc hại","safe"],
+            [46,"Pd","Palladium",106.42,5,10,"transition","Solid",2.20,804,"1554.9°C / 2963°C","Dẫn điện tốt","Bộ chuyển đổi xúc tác ô tô, linh kiện điện tử","Kim loại trơ không độc hại","safe"],
+            [47,"Ag","Silver",107.87,5,11,"transition","Solid",1.93,731,"961.78°C / 2162°C","CAO NHẤT","Trang sức, gương, vi mạch, kháng khuẩn","Không độc hại đối với con người","safe"],
+            [48,"Cd","Cadmium",112.41,5,12,"transition","Solid",1.69,868,"321.07°C / 767°C","Dẫn điện tốt","Pin Ni-Cd cũ, mạ chống gỉ","ĐỘC HẠI TÍCH TỤ, hại thận và xương","danger"],
+            [49,"In","Indium",114.82,5,13,"post-transition","Solid",1.78,558,"156.60°C / 2072°C","Trung bình","Màn hình cảm ứng phẳng (Lớp ITO)","Độc tính rất thấp ở điều kiện phòng","safe"],
+            [50,"Sn","Tin",118.71,5,14,"post-transition","Solid",1.96,708,"231.93°C / 2602°C","Trung bình","Mối hàn điện tử, tráng lon thực phẩm","Thiếc kim loại hoàn toàn không độc","safe"],
+            [51,"Sb","Antimony",121.76,5,15,"metalloid","Solid",2.05,834,"630.63°C / 1587°C","Kém","Chất chống cháy, đạn chì, ắc quy","Độc hại nếu tiếp xúc lâu dài","warning"],
+            [52,"Te","Tellurium",127.60,5,16,"metalloid","Solid",2.10,869,"449.51°C / 988°C","Bán dẫn","Hợp kim bán dẫn, đĩa CD/DVD ghi xóa","Độc tính trung bình, hơi thở có mùi tỏi nếu ngộ độc","warning"],
+            [53,"I","Iodine",126.90,5,17,"halogen","Solid",2.66,1008,"113.7°C / 184.3°C","Không dẫn","Thuốc sát trùng y tế, vi lượng tuyến giáp","Vi lượng cần thiết; Dạng tinh thể tiếp xúc da gây kích ứng nhẹ","safe"],
+            [54,"Xe","Xenon",131.29,5,18,"noble-gas","Gas",null,1170,"-111.75°C / -108.1°C","Không dẫn","Đèn pha xe hơi cao cấp, thuốc mê y tế","Khí trơ hoàn toàn không độc hại","safe"],
+            [55,"Cs","Caesium",132.91,6,1,"alkali","Solid",0.79,376,"28.44°C / 671°C","Dẫn điện tốt","Đồng hồ nguyên tử chính xác nhất thế giới","Phản ứng phát nổ mãnh liệt với nước","warning"],
+            [56,"Ba","Barium",137.33,6,2,"alkaline-earth","Solid",0.89,503,"727°C / 1897°C","Trung bình","Chụp X-quang dạ dày (dạng BaSO4 không tan)","Kim loại tự do dễ phản ứng, muối tan gây độc","warning"],
+            [57,"La","Lanthanum",138.91,6,3,"lanthanide","Solid",1.10,538,"920°C / 3464°C","Trung bình","Ống kính máy ảnh cao cấp, pin hybrid","Độc tính thấp ở nhiệt độ phòng","safe"],
+            [58,"Ce","Cerium",140.12,6,3,"lanthanide","Solid",1.12,534,"798°C / 3443°C","Trung bình","Đá lửa trong bật lửa, xúc tác khí thải","Độc tính thấp","safe"],
+            [59,"Pr","Praseodymium",140.91,6,3,"lanthanide","Solid",1.13,527,"931°C / 3520°C","Trung bình","Kính thợ hàn Didymium, nam châm mạnh","Độc tính thấp","safe"],
+            [60,"Nd","Neodymium",144.24,6,3,"lanthanide","Solid",1.14,533,"1024°C / 3074°C","Trung bình","Nam châm vĩnh cửu siêu mạnh (NdFeB)","An toàn khi sử dụng làm nam châm","safe"],
+            [61,"Pm","Promethium",145,6,3,"lanthanide","Solid",null,540,"1042°C / 3000°C","Trung bình","Pin hạt nhân cho thiết bị đặc biệt","NGUY HIỂM PHÓNG XẠ","danger"],
+            [62,"Sm","Samarium",150.36,6,3,"lanthanide","Solid",1.17,545,"1072°C / 1794°C","Trung bình","Nam châm Samarium-Cobalt chịu nhiệt","Độc tính thấp","safe"],
+            [63,"Eu","Europium",151.96,6,3,"lanthanide","Solid",null,547,"822°C / 1529°C","Trung bình","Chất huỳnh quang bảo mật trên tiền Euro","Độc tính thấp","safe"],
+            [64,"Gd","Gadolinium",157.25,6,3,"lanthanide","Solid",1.20,593,"1313°C / 3273°C","Trung bình","Chất tương phản y tế chụp MRI","An toàn trong phức chất y tế","safe"],
+            [65,"Tb","Terbium",158.93,6,3,"lanthanide","Solid",null,565,"1356°C / 3230°C","Trung bình","Đèn huỳnh quang tiết kiệm điện, la-zer","Độc tính thấp","safe"],
+            [66,"Dy","Dysprosium",162.50,6,3,"lanthanide","Solid",1.22,573,"1412°C / 2567°C","Trung bình","Phụ gia nam châm xe điện","Độc tính thấp","safe"],
+            [67,"Ho","Holmium",164.93,6,3,"lanthanide","Solid",1.23,581,"1474°C / 2700°C","Trung bình","La-zer y tế phẫu thuật sỏi thận","Độc tính thấp","safe"],
+            [68,"Er","Erbium",167.26,6,3,"lanthanide","Solid",1.24,589,"1529°C / 2868°C","Trung bình","Bộ khuếch đại tín hiệu cáp quang","Độc tính thấp","safe"],
+            [69,"Tm","Thulium",168.93,6,3,"lanthanide","Solid",1.25,597,"1545°C / 1950°C","Trung bình","Thiết bị tia X di động","Độc tính thấp","safe"],
+            [70,"Yb","Ytterbium",173.05,6,3,"lanthanide","Solid",null,603,"824°C / 1196°C","Trung bình","Đồng hồ nguyên tử độ chính xác cao","Kích ứng nhẹ","safe"],
+            [71,"Lu","Lutetium",174.97,6,3,"lanthanide","Solid",1.27,524,"1663°C / 3402°C","Trung bình","Xạ trị ung thư, xúc tác hóa học","Độc tính thấp","safe"],
+            [72,"Hf","Hafnium",178.49,6,4,"transition","Solid",1.30,658,"2233°C / 4603°C","Trung bình","Thanh khống chế vi mạch lò hạt nhân","Độc tính thấp ở 25°C","safe"],
+            [73,"Ta","Tantalum",180.95,6,5,"transition","Solid",1.50,761,"3017°C / 5458°C","Trung bình","Tụ điện Tantalum trong smartphone, khớp y tế","Hoàn toàn không độc, tương thích sinh học","safe"],
+            [74,"W","Tungsten",183.84,6,6,"transition","Solid",2.36,770,"3422°C / 5555°C","Trung bình","Dây tóc bóng đèn, mũi khoan gia công thép","Độc tính rất thấp ở khối rắn","safe"],
+            [75,"Re","Rhenium",186.21,6,7,"transition","Solid",1.90,760,"3186°C / 5596°C","Trung bình","Động cơ phản lực máy bay chiến đấu","Không độc hại ở 25°C","safe"],
+            [76,"Os","Osmium",190.23,6,8,"transition","Solid",2.20,840,"3033°C / 5012°C","Trung bình","Ngòi bút máy cao cấp, tiếp điểm điện","Kim loại khối an toàn (Dạng Oxit khí mới độc)","safe"],
+            [77,"Ir","Iridium",192.22,6,9,"transition","Solid",2.20,880,"2446°C / 4428°C","Dẫn điện tốt","Bugi xe đua, nồi nấu kim loại chịu nhiệt","Kim loại quý trơ không độc hại","safe"],
+            [78,"Pt","Platinum",195.08,6,10,"transition","Solid",2.28,870,"1768.3°C / 3825°C","Dẫn điện tốt","Trang sức, bộ lọc khí thải, thuốc Cisplatin","Kim loại quý trơ hoàn toàn không độc","safe"],
+            [79,"Au","Gold",196.97,6,11,"transition","Solid",2.54,890,"1064.18°C / 2856°C","Rất cao","Trang sức, tích trữ tài chính, vi mạch cao cấp","Hoàn toàn trơ sinh học, không độc hại","safe"],
+            [80,"Hg","Mercury",200.59,6,12,"transition","Liquid",2.00,1007,"-38.83°C / 356.73°C","Trung bình","Nhiệt kế, đèn huỳnh quang","CỰC ĐỘC THẦN KINH, bốc hơi độc ở 25°C","danger"],
+            [81,"Tl","Thallium",204.38,6,13,"post-transition","Solid",1.62,589,"304°C / 1473°C","Trung bình","Cảm biến hồng ngoại","CỰC ĐỘC, phá hủy hệ thần kinh","danger"],
+            [82,"Pb","Lead",207.2,6,14,"post-transition","Solid",2.33,715,"327.46°C / 1749°C","Trung bình","Ắc quy xe hơi, tấm chắn tia X","ĐỘC HẠI TÍCH TỤ, ảnh hưởng hệ thần kinh","danger"],
+            [83,"Bi","Bismuth",208.98,6,15,"post-transition","Solid",2.02,703,"271.4°C / 1564°C","Kém","Thuốc dạ dày Pepto-Bismol, mỹ phẩm","Ít độc nhất trong các kim loại nặng","safe"],
+            [84,"Po","Polonium",209,6,16,"post-transition","Solid",2.00,812,"254°C / 962°C","Kém","Nguồn nhiệt vũ trụ đặc biệt","SIÊU ĐỘC PHÓNG XẠ","danger"],
+            [85,"At","Astatine",210,6,17,"halogen","Solid",2.20,920,"302°C / 337°C","Không dẫn","Nghiên cứu điều trị ung thư bằng tia alpha","CỰC NGUY HIỂM PHÓNG XẠ","danger"],
+            [86,"Rn","Radon",222,6,18,"noble-gas","Gas",null,1037,"-71°C / -61.7°C","Không dẫn","Nghiên cứu dự báo động đất","Khí phóng xạ tự nhiên gây nguy cơ ung thư phổi","danger"],
+            [87,"Fr","Francium",223,7,1,"alkali","Solid",0.70,380,"27°C / 677°C","Dẫn điện","Nghiên cứu cấu trúc hạt nhân","CỰC PHÓNG XẠ, phân rã cực nhanh","danger"],
+            [88,"Ra","Radium",226,7,2,"alkaline-earth","Solid",0.90,509,"700°C / 1737°C","Dẫn điện","Sơn dạ quang cổ điển, nghiên cứu Y học","CỰC ĐỘC PHÓNG XẠ","danger"],
+            [89,"Ac","Actinium",227,7,3,"actinide","Solid",1.10,499,"1050°C / 3198°C","Trung bình","Nguồn phát tia neutron, Y học hạt nhân","CỰC PHÓNG XẠ","danger"],
+            [90,"Th","Thorium",232.04,7,3,"actinide","Solid",1.30,587,"1750°C / 4788°C","Trung bình","Nhiên liệu hạt nhân thế hệ mới","CỰC PHÓNG XẠ","danger"],
+            [91,"Pa","Protactinium",231.04,7,3,"actinide","Solid",1.50,568,"1568°C / 4000°C","Kém","Nghiên cứu khoa học hạt nhân","CỰC PHÓNG XẠ VÀ ĐỘC TÍNH CAO","danger"],
+            [92,"U","Uranium",238.03,7,3,"actinide","Solid",1.38,597,"1135°C / 4131°C","Kém","Nhiên liệu nhà máy điện hạt nhân","CỰC NGUY HIỂM PHÓNG XẠ","danger"],
+            [93,"Np","Neptunium",237,7,3,"actinide","Solid",1.36,604,"644°C / 3902°C","Kém","Thiết bị phát hiện neutron","CỰC PHÓNG XẠ","danger"],
+            [94,"Pu","Plutonium",244,7,3,"actinide","Solid",1.28,585,"639.4°C / 3228°C","Kém","Pin năng lượng tàu vũ trụ Voyager, năng lượng hạt nhân","SIÊU ĐỘC PHÓNG XẠ VÀ ĐỘC TÍNH HÓA HỌC","danger"],
+            [95,"Am","Americium",243,7,3,"actinide","Solid",1.30,578,"1176°C / 2607°C","Kém","Cảm biến báo khói gia đình","PHÓNG XẠ (An toàn tuyệt đối khi đóng kín trong đầu báo khói)","warning"],
+            [96,"Cm","Curium",247,7,3,"actinide","Solid",1.30,581,"1340°C / 3110°C","Kém","Phân tích thổ dưỡng trên Sao Hỏa","CỰC PHÓNG XẠ","danger"],
+            [97,"Bk","Berkelium",247,7,3,"actinide","Solid",1.30,601,"986°C / 2623°C","Kém","Nghiên cứu tổng hợp nguyên tố siêu nặng","CỰC PHÓNG XẠ","danger"],
+            [98,"Cf","Californium",251,7,3,"actinide","Solid",1.30,608,"900°C / 1470°C","Kém","Dò tìm dầu mỏ, khởi động lò phản ứng","SIÊU PHÓNG XẠ","danger"],
+            [99,"Es","Einsteinium",252,7,3,"actinide","Solid",1.30,619,"860°C / Chưa rõ","Kém","Nghiên cứu vật lý lý thuyết","CỰC PHÓNG XẠ","danger"],
+            [100,"Fm","Fermium",257,7,3,"actinide","Solid",1.30,627,"1527°C / Chưa rõ","Kém","Nghiên cứu hạt nhân","CỰC PHÓNG XẠ","danger"],
+            [101,"Md","Mendelevium",258,7,3,"actinide","Solid",1.30,635,"827°C / Chưa rõ","Kém","Nghiên cứu phòng thí nghiệm","CỰC PHÓNG XẠ","danger"],
+            [102,"No","Nobelium",259,7,3,"actinide","Solid",1.30,642,"827°C / Chưa rõ","Kém","Nghiên cứu phòng thí nghiệm","CỰC PHÓNG XẠ","danger"],
+            [103,"Lr","Lawrencium",266,7,3,"actinide","Solid",null,470,"1627°C / Chưa rõ","Kém","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [104,"Rf","Rutherfordium",267,7,4,"transition","Unknown",null,580,"Chưa xác định","Chưa rõ","Tổng hợp phòng thí nghiệm","CỰC PHÓNG XẠ","danger"],
+            [105,"Db","Dubnium",268,7,5,"transition","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [106,"Sg","Seaborgium",269,7,6,"transition","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [107,"Bh","Bohrium",270,7,7,"transition","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [108,"Hs","Hassium",277,7,8,"transition","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [109,"Mt","Meitnerium",278,7,9,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [110,"Ds","Darmstadtium",281,7,10,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [111,"Rg","Roentgenium",282,7,11,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [112,"Cn","Copernicium",285,7,12,"transition","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [113,"Nh","Nihonium",286,7,13,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [114,"Fl","Flerovium",289,7,14,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [115,"Mc","Moscovium",290,7,15,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [116,"Lv","Livermorium",293,7,16,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [117,"Ts","Tennessine",294,7,17,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"],
+            [118,"Og","Oganesson",294,7,18,"unknown","Unknown",null,null,"Chưa xác định","Chưa rõ","Nghiên cứu khoa học","CỰC PHÓNG XẠ","danger"]
+        ];
+
+        // Tính cấu hình e
+        function getElectronConfig(n) {
+            const gas = [[2,"[He]"],[10,"[Ne]"],[18,"[Ar]"],[36,"[Kr]"],[54,"[Xe]"],[86,"[Rn]"]];
+            if(n===1) return "1s¹"; if(n===2) return "1s²";
+            let core = "", rem = n;
+            for(let i=gas.length-1; i>=0; i--){
+                if(n > gas[i][0]){ core = gas[i][1]; rem = n - gas[i][0]; break; }
+            }
+            return `${core} +${rem}e⁻`;
+        }
+
+        const elementsData = rawElements.map(e => ({
+            number: e[0], symbol: e[1], name: e[2], mass: e[3], period: e[4], group: e[5],
+            category: e[6], state: e[7]==='Gas'?'Gas (Khí)':e[7]==='Liquid'?'Liquid (Lỏng)':e[7]==='Solid'?'Solid (Rắn)':'Chưa rõ',
+            electronegativity: e[8] ? e[8].toString() : "Chưa có",
+            ionization: e[9] ? e[9] + " kJ/mol" : "Chưa rõ",
+            temp: e[10], conductivity: e[11], application: e[12], hazard: e[13],
+            hazardLevel: e[14], config: getElectronConfig(e[0])
+        }));
+
+        function getGridPosition(e) {
+            if (e.number >= 57 && e.number <= 71) return { row: 9, col: e.number - 57 + 4 };
+            if (e.number >= 89 && e.number <= 103) return { row: 10, col: e.number - 89 + 4 };
+            return { row: e.period, col: e.group };
+        }
+
+        function renderTable() {
+            const container = document.getElementById("periodicTable");
+            elementsData.forEach(e => {
+                const pos = getGridPosition(e);
+                const div = document.createElement("div");
+                div.className = `element ${e.category}`;
+                div.style.gridRow = pos.row;
+                div.style.gridColumn = pos.col;
+                div.innerHTML = `
+                    <span class="num">${e.number}</span>
+                    <span class="sym">${e.symbol}</span>
+                    <span class="name">${e.name}</span>
+                `;
+                div.onclick = () => showDetail(e);
+                container.appendChild(div);
+            });
+        }
+
+        // --- KHU VỰC XỬ LÝ THREE.JS MÔ HÌNH 3D NGUYÊN TỬ ---
+        let scene, camera, renderer, controls;
+        let electronGroup = new THREE.Group();
+        let animationFrameId;
+
+        function init3D() {
+            const container = document.getElementById("atom3d");
+            const width = container.clientWidth || 390;
+            const height = container.clientHeight || 220;
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+            camera.position.z = 15;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const pointLight = new THREE.PointLight(0x38bdf8, 1.5);
+            pointLight.position.set(10, 10, 10);
+            scene.add(pointLight);
+
+            animate();
+        }
+
+        function build3DAtom(atomicNumber, period) {
+            if (!scene) return;
+
+            // Xóa mô hình cũ
+            while(scene.children.length > 0){ 
+                scene.remove(scene.children[0]); 
+            }
+            electronGroup = new THREE.Group();
+
+            // Ánh sáng
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 1.2);
+            pointLight.position.set(10, 10, 10);
+            scene.add(pointLight);
+
+            // 1. Tạo Hạt Nhân (Nucleus)
+            const nucleusGroup = new THREE.Group();
+            const nucleusRadius = 0.8 + Math.min(atomicNumber * 0.015, 1.2);
+            const particleCount = Math.min(atomicNumber, 40); // Giới hạn hạt hiển thị tối ưu hiệu năng
+            
+            for(let i = 0; i < particleCount; i++) {
+                const isProton = i % 2 === 0;
+                const pGeo = new THREE.SphereGeometry(0.22, 12, 12);
+                const pMat = new THREE.MeshStandardMaterial({
+                    color: isProton ? 0xef4444 : 0x3b82f6,
+                    roughness: 0.3,
+                    metalness: 0.2
+                });
+                const particle = new THREE.Mesh(pGeo, pMat);
+                
+                const u = Math.random(), v = Math.random();
+                const theta = u * 2.0 * Math.PI, phi = Math.acos(2.0 * v - 1.0);
+                const r = Math.cbrt(Math.random()) * nucleusRadius;
+                particle.position.set(
+                    r * Math.sin(phi) * Math.cos(theta),
+                    r * Math.sin(phi) * Math.sin(theta),
+                    r * Math.cos(phi)
+                );
+                nucleusGroup.add(particle);
+            }
+            scene.add(nucleusGroup);
+
+            // 2. Tạo Vỏ Electron & Quỹ đạo vòng tròn
+            const shellCount = Math.min(period, 7);
+            let remainingElectrons = atomicNumber;
+
+            for(let shell = 1; shell <= shellCount; shell++) {
+                const radius = 2.2 + shell * 1.3;
+                
+                // Vẽ đường quỹ đạo (Orbit Ring)
+                const ringGeo = new THREE.RingGeometry(radius - 0.02, radius + 0.02, 64);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0x334155, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                scene.add(ring);
+
+                // Thêm Electron trên từng quỹ đạo
+                const electronsInShell = Math.min(remainingElectrons, 2 * shell * shell);
+                remainingElectrons -= electronsInShell;
+
+                const shellGroup = new THREE.Group();
+                // Nghiêng ngẫu nhiên quỹ đạo một chút cho hiệu ứng 3D sống động
+                shellGroup.rotation.x = (shell * 0.2);
+                shellGroup.rotation.y = (shell * 0.15);
+
+                for(let e = 0; e < electronsInShell; e++) {
+                    const angle = (e / electronsInShell) * Math.PI * 2;
+                    const eGeo = new THREE.SphereGeometry(0.12, 10, 10);
+                    const eMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+                    const electron = new THREE.Mesh(eGeo, eMat);
+
+                    electron.position.x = radius * Math.cos(angle);
+                    electron.position.z = radius * Math.sin(angle);
+                    shellGroup.add(electron);
+                }
+                electronGroup.add(shellGroup);
+            }
+            scene.add(electronGroup);
+
+            // Điều chỉnh tầm nhìn camera tương ứng quy mô nguyên tử
+            camera.position.z = 6 + shellCount * 2.5;
+        }
+
+        function animate() {
+            animationFrameId = requestAnimationFrame(animate);
+            if(electronGroup) {
+                electronGroup.children.forEach((group, index) => {
+                    group.rotation.y += 0.01 + (index * 0.003); // Tốc độ xoay electron
+                });
+            }
+            if(controls) controls.update();
+            if(renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        // Hiển thị Chi Tiết và Dựng 3D
+        function showDetail(e) {
+            switchTab('detail');
+            document.getElementById("detailPlaceholder").style.display = "none";
+            document.getElementById("detailContent").style.display = "block";
+
+            const sBox = document.getElementById("dSym");
+            sBox.innerText = e.symbol;
+            sBox.className = `detail-sym ${e.category}`;
+
+            document.getElementById("dName").innerText = e.name;
+            document.getElementById("dCat").innerText = getCategoryName(e.category);
+            document.getElementById("dNum").innerText = e.number;
+            document.getElementById("dPG").innerText = `Chu kỳ ${e.period} - Nhóm ${e.group}`;
+            document.getElementById("dMass").innerText = e.mass + " u";
+            document.getElementById("dConfig").innerText = e.config;
+            document.getElementById("dState").innerText = e.state;
+            document.getElementById("dEN").innerText = e.electronegativity;
+            document.getElementById("dIE").innerText = e.ionization;
+            document.getElementById("dTemp").innerText = e.temp;
+            document.getElementById("dCond").innerText = e.conductivity;
+            document.getElementById("dApp").innerText = e.application;
+            
+            const hazEl = document.getElementById("dHaz");
+            hazEl.innerText = e.hazard;
+            hazEl.className = `hazard-${e.hazardLevel}`;
+
+            // Khởi tạo/Cập nhật Mô hình 3D
+            if(!renderer) init3D();
+            build3DAtom(e.number, e.period);
+        }
+
+        function initSelects() {
+            const s1 = document.getElementById("sel1");
+            const s2 = document.getElementById("sel2");
+            elementsData.forEach(e => {
+                s1.add(new Option(`${e.number}. ${e.name} (${e.symbol})`, e.number));
+                s2.add(new Option(`${e.number}. ${e.name} (${e.symbol})`, e.number));
+            });
+            s1.value = 1;  // Hydrogen
+            s2.value = 79; // Gold
+            renderCompare();
+        }
+
+        function renderCompare() {
+            const e1 = elementsData.find(e => e.number == document.getElementById("sel1").value);
+            const e2 = elementsData.find(e => e.number == document.getElementById("sel2").value);
+
+            document.getElementById("cH1").innerText = `${e1.symbol} (${e1.name})`;
+            document.getElementById("cH2").innerText = `${e2.symbol} (${e2.name})`;
+
+            const keys = [
+                { l: "Số hiệu atom", k: "number" },
+                { l: "Vị trí", custom: e => `CK ${e.period} - Nhóm ${e.group}` },
+                { l: "Khối lượng", custom: e => e.mass + " u" },
+                { l: "Cấu hình e", k: "config" },
+                { l: "Trạng thái (25°C)", k: "state" },
+                { l: "Độ âm điện", k: "electronegativity" },
+                { l: "Năng lượng ion hóa", k: "ionization" },
+                { l: "Nhiệt độ nóng chảy/sôi", k: "temp" },
+                { l: "Độ dẫn điện", k: "conductivity" },
+                { l: "Độ độc hại (25°C)", isHaz: true }
+            ];
+
+            let html = "";
+            keys.forEach(item => {
+                let v1 = item.custom ? item.custom(e1) : e1[item.k];
+                let v2 = item.custom ? item.custom(e2) : e2[item.k];
+                
+                if (item.isHaz) {
+                    v1 = `<span class="hazard-${e1.hazardLevel}">${e1.hazard}</span>`;
+                    v2 = `<span class="hazard-${e2.hazardLevel}">${e2.hazard}</span>`;
+                }
+
+                html += `<tr><td><strong>${item.l}</strong></td><td>${v1}</td><td>${v2}</td></tr>`;
+            });
+            document.getElementById("cBody").innerHTML = html;
+        }
+
+        function switchTab(t) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            if(t === 'detail') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                document.getElementById('detailTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.getElementById('compareTab').classList.add('active');
+            }
+        }
+
+        function getCategoryName(cat) {
+            const map = {
+                "nonmetal":"Phi kim (Nonmetal)", "noble-gas":"Khí hiếm (Noble gas)", "alkali":"Kim loại kiềm (Alkali)",
+                "alkaline-earth":"Kiềm thổ (Alkaline earth)", "metalloid":"Á kim (Metalloid)", "halogen":"Halogen",
+                "post-transition":"Kim loại yếu (Post-transition)", "transition":"Kim loại chuyển tiếp (Transition)",
+                "lanthanide":"Họ Lanthan", "actinide":"Họ Actini", "unknown":"Chưa xác định"
+            };
+            return map[cat] || cat;
+        }
+
+        window.onload = () => { renderTable(); initSelects(); };
+    </script>
+</body>
+</html>
